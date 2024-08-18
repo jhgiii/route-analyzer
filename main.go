@@ -112,6 +112,9 @@ func (a *AristaRouter) GetRoute() (string, error) {
 	return r.Result, nil
 }
 
+func (a *AristaRouter) GetHostname() string {
+	return a.Hostname
+}
 func (a *AristaRouter) parseRouteTable(routeTable string) (string, error) {
 	return "", nil
 }
@@ -147,6 +150,10 @@ func (c *CumulusRouter) parseRouteTable(routeTable string) (string, error) {
 type Router interface {
 	GetRoute() (string, error)
 	parseRouteTable(string) (string, error)
+	Connect() error
+	Close() error
+	SetupDriver() error
+	GetHostname() string
 }
 
 func main() {
@@ -158,7 +165,7 @@ func main() {
 	routers = append(routers, a, b)
 	for _, router := range routers {
 		wg.Add(1)
-		go func(router *AristaRouter) {
+		go func(router Router) {
 			err := router.SetupDriver()
 			if err != nil {
 				log.Fatal(err)
@@ -172,7 +179,7 @@ func main() {
 			if err != nil {
 				log.Fatal(err)
 			}
-			fmt.Printf("Response from %s:\n %s\n", router.Hostname, r)
+			fmt.Printf("Response from %s:\n %s\n", router.GetHostname(), r)
 			wg.Done()
 		}(router)
 	}
