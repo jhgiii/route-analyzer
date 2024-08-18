@@ -6,10 +6,12 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"sync"
+
 	"github.com/scrapli/scrapligo/driver/network"
 	"github.com/scrapli/scrapligo/driver/options"
 	"github.com/scrapli/scrapligo/platform"
-	"log"
 )
 
 type JuniperRouter struct {
@@ -74,10 +76,24 @@ func (a *AristaRouter) SetupDriver() error {
 }
 
 func (a *AristaRouter) Connect() error {
+	if a.Driver == nil {
+		return fmt.Errorf("driver not built, please use AristaRouter.SetupDriver()")
+	}
+	if a.Scrapli == nil {
+		return fmt.Errorf("scrapli not setup, please use AristaRouter.SetupDriver()")
+	}
+
 	return a.Driver.Open()
 }
 
 func (a *AristaRouter) Close() error {
+	if a.Driver == nil {
+		return fmt.Errorf("driver not built, please use AristaRouter.SetupDriver()")
+	}
+	if a.Scrapli == nil {
+		return fmt.Errorf("scrapli not setup, please use AristaRouter.SetupDriver()")
+	}
+
 	return a.Driver.Close()
 }
 
@@ -134,20 +150,32 @@ type Router interface {
 }
 
 func main() {
+	var wg sync.WaitGroup
 	a := NewAristaRouter("test", "172.20.20.2", "admin", "admin")
-	err := a.SetupDriver()
-	if err != nil {
-		log.Fatal(err)
-	}
-	err = a.Connect()
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer a.Close()
+	b := NewAristaRouter("test1", "172.20.20.3", "admin", "admin")
 
-	r, err := a.GetRoute()
-	if err != nil {
-		log.Fatal(err)
+	var routers []*AristaRouter
+	routers = append(routers, a, b)
+	for _, router := range routers {
+		wg.Add(1)
+		go func(router *AristaRouter) {
+			err := router.SetupDriver()
+			if err != nil {
+				log.Fatal(err)
+			}
+			err = router.Connect()
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer router.Close()
+			r, err := router.GetRoute()
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Printf("Response from %s:\n %s\n", router.Hostname, r)
+			wg.Done()
+		}(router)
 	}
-	fmt.Print(r)
+	wg.Wait()
+
 }
